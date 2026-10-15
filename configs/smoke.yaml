@@ -1,0 +1,31 @@
+paper:
+  slug: canonical-saliency-maps-decoding-deep-face-models
+  title: "Canonical Saliency Maps: Decoding Deep Face Models"
+data:
+  celeba_root: ../../datasets/celeba/extracted/celeba
+  lfw_root: ../../datasets/lfw
+  calfw_root: ../../datasets/calfw/extracted/calfw-hf
+  cplfw_root: ../../datasets/cplfw/extracted/cplfw-hf
+  root: ../../datasets/celeba/extracted/celeba
+  train_ratio: 0.7
+  max_images: 1024
+model:
+  image_size: 112
+train:
+  protocol: smoke
+  seed: 42
+  num_workers: 2
+  batch_size: 32
+  epochs: 1
+  lr: 0.01
+eval:
+  batch_size: 64
+  n_saliency_images: 8
+  patch: 15
+  stride: 16
+paths:
+  checkpoint_dir: outputs/checkpoints/smoke
+  log_dir: outputs/logs/smoke
+  pred_dir: outputs/predictions/smoke
+  figure_dir: outputs/figures/smoke
+device: cuda
