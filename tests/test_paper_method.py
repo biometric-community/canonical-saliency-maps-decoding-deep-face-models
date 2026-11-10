@@ -82,7 +82,7 @@ def test_heatmaps_of_one_image_darken_the_same_total_amount():
     broad = np.zeros((16, 16), dtype=np.float32)
     broad[2:14, 2:14] = 1.0
     img = image(16)
-    darkened = [(img - negative_explanation(img, h)).sum().item() for h in (spot, broad)]
+    darkened = [(img - negative_explanation(img, h, mass=10.0)).sum().item() for h in (spot, broad)]
     assert darkened[0] == pytest.approx(darkened[1], rel=1e-3)
 
 
@@ -101,7 +101,7 @@ def test_negative_explanation_darkens_the_highlighted_pixels():
 )
 def test_average_drop_and_increase_in_confidence(monkeypatch, explained, drop, increase):
     """Eqs. (11)-(12) for one image whose original confidence is 0.8."""
-    monkeypatch.setattr(maps, "negative_explanation", lambda img, _h: torch.full_like(img, explained))
+    monkeypatch.setattr(maps, "negative_explanation", lambda img, *_: torch.full_like(img, explained))
     result = explanation_metrics(MeanModel(), torch.full((1, 3, 4, 4), 0.8), 1, np.ones((4, 4)))
     assert result["avg_drop_pct"] == pytest.approx(drop, abs=1e-4)
     assert result["increase_conf"] == pytest.approx(increase)

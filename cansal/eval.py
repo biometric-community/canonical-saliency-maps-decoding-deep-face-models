@@ -20,7 +20,7 @@ if str(_ROOT) not in sys.path:
 
 from cansal.data.attrs import CelebAAttrDataset, resolve_celeba_root
 from cansal.models.gender_net import GenderNet
-from cansal.saliency.maps import aggregate_cms, explanation_metrics, grad_cam, occlusion_cis
+from cansal.saliency.maps import aggregate_cms, explanation_metrics, grad_cam, occlusion_cis, shared_mass
 
 
 def load_config(path: str) -> dict:
@@ -98,12 +98,13 @@ def evaluate(cfg: dict, device_override: Optional[str] = None) -> Dict:
         cis = occlusion_cis(model, x, cls, patch=patch, stride=stride)
         gcam = grad_cam(model, x, cls)
         cis_maps.append(cis)
-        m_c = explanation_metrics(model, x, cls, cis)
-        m_g = explanation_metrics(model, x, cls, gcam)
+        mass = shared_mass(cis, gcam)  # Eq. 10: one s per image, shared by all methods
+        m_c = explanation_metrics(model, x, cls, cis, mass)
+        m_g = explanation_metrics(model, x, cls, gcam, mass)
         for k in ("avg_drop_pct", "increase_conf"):
             met_cis[k].append(m_c[k])
             met_gcam[k].append(m_g[k])
-        if m_c["avg_drop_pct"] > m_g["avg_drop_pct"]:
+        if m_c["expl"] < m_g["expl"]:  # Eq. 13: the CIS explanation leaves the lowest confidence
             wins += 1
 
     cms = aggregate_cms(cis_maps)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 import torch
@@ -34,12 +34,13 @@ def occlusion_cis(
             occ = image.clone()
             occ[:, :, y0:y1, x0:x1] = 0.0
             conf = float(model.predict_proba(occ)[0, class_idx].item())
-            drop = max(0.0, base - conf)
+            drop = base - conf  # Eq. 1: plain difference, increases stay negative
             acc[y0:y1, x0:x1] += drop
             counts[y0:y1, x0:x1] += 1.0
-    dens = acc / (counts + 1e-8)
-    if dens.max() > 0:
-        dens = dens / dens.max()
+    dens = acc / (counts + 1e-8)  # Eq. 5: density normalisation
+    peak = np.abs(dens).max()
+    if peak > 0:
+        dens = dens / peak
     return dens.astype(np.float32)
 
 
@@ -84,11 +85,25 @@ def aggregate_cms(cis_list) -> np.ndarray:
     return m.astype(np.float32)
 
 
-def negative_explanation(image: torch.Tensor, heatmap: np.ndarray) -> torch.Tensor:
-    """E = (1-H)*I with H normalized to equal pixel sum across methods."""
-    h = torch.from_numpy(heatmap).to(image.device, dtype=image.dtype)
-    h = h / (h.sum() + 1e-8) * heatmap.size  # equal sum mass
-    h = (h - h.min()) / (h.max() - h.min() + 1e-8)
+def normalised_heatmap(heatmap: np.ndarray) -> np.ndarray:
+    """Eq. 10, first step: H' = (h - min h) / (max h - min h)."""
+    h = np.asarray(heatmap, dtype=np.float64)
+    return (h - h.min()) / (h.max() - h.min() + 1e-8)
+
+
+def shared_mass(*heatmaps: np.ndarray) -> float:
+    """The scalar s of Eq. 10 for one image: the smallest pixel sum among its normalised
+    heatmaps, so every standardised map stays within [0, 1]."""
+    return float(min(normalised_heatmap(h).sum() for h in heatmaps))
+
+
+def negative_explanation(image: torch.Tensor, heatmap: np.ndarray, mass: Optional[float] = None) -> torch.Tensor:
+    """Eq. 9: E = (1 - H) * I, with H = s * H' / sum(H') (Eq. 10) so that all methods for the
+    same image darken the same total amount. Without `mass`, H = H'."""
+    h = normalised_heatmap(heatmap)
+    if mass is not None:
+        h = h * (mass / (h.sum() + 1e-8))
+    h = torch.from_numpy(h).to(image.device, dtype=image.dtype)
     return image * (1.0 - h.view(1, 1, *h.shape))
 
 
@@ -98,11 +113,12 @@ def explanation_metrics(
     image: torch.Tensor,
     class_idx: int,
     heatmap: np.ndarray,
+    mass: Optional[float] = None,
 ) -> Dict[str, float]:
     """Average Drop % and Increase in Confidence (paper Eqs. 11–12)."""
     model.eval()
     base = float(model.predict_proba(image)[0, class_idx].item())
-    e = negative_explanation(image, heatmap)
+    e = negative_explanation(image, heatmap, mass)
     conf_e = float(model.predict_proba(e)[0, class_idx].item())
     drop = max(0.0, (base - conf_e) / (base + 1e-8)) * 100.0
     increase = 100.0 if conf_e > base else 0.0
