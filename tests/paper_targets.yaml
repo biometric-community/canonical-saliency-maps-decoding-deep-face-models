@@ -1,0 +1,10 @@
+# John, Balasubramanian & Jawahar, "Canonical Saliency Maps: Decoding Deep Face Models",
+# IEEE TBIOM 3(4), 2021, doi:10.1109/TBIOM.2021.3120758, arXiv:2105.01386.
+source: arXiv:2105.01386
+
+# Fig. 18: a 15x15 occluding patch is used everywhere else in the paper.
+patch: 15
+
+# Sec. 5.1, Figs. 10-11: the canonical maps beat every baseline on every metric, and win on
+# most images. With Grad-CAM as the only baseline, winning on most images means over 50%.
+win_pct_floor: 50.0
